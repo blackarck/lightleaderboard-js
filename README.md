@@ -1,333 +1,325 @@
-# LightLeaderboard — Godot 4 SDK
+# lightleaderboard
 
-[![Godot Engine](https://img.shields.io/badge/Godot-4.0%2B-478cbf?logo=godotengine&logoColor=white&style=flat-square)](https://godotengine.org)
+[![npm version](https://img.shields.io/npm/v/lightleaderboard.svg?style=flat-square)](https://www.npmjs.com/package/lightleaderboard)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Asset Library](https://img.shields.io/badge/Godot%20AssetLib-LightLeaderboard-green?style=flat-square)](https://godotengine.org/asset-library)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg?style=flat-square)](https://www.typescriptlang.org/)
+[![Zero Dependencies](https://img.shields.io/badge/dependencies-0-success.svg?style=flat-square)](package.json)
 
-Official Godot 4 addon for **[LightLeaderboard](https://leaderboard.goproso.com)** — fast, lightweight leaderboard-as-a-service for indie game developers and studios.
+Official JavaScript / TypeScript SDK for **[LightLeaderboard](https://leaderboard.goproso.com)** — lightweight leaderboard-as-a-service for game developers.
+
+Works seamlessly across **Node.js (18+)**, **modern browsers**, **Bun**, **Deno**, and edge runtimes (Cloudflare Workers, Vercel Edge) using native `fetch` and the standard **Web Crypto API**.
 
 ---
 
 ## Features
 
-- ⚡ **Instant Rank on Submit** — Get the player's new rank, total players, and personal best flag immediately from `submit_score`.
-- 🔒 **Native Anti-Cheat** — Automatic HMAC-SHA256 score signing using Godot's built-in `HMACContext`.
-- 🎯 **Player-Centric Views** — Centered leaderboards ("You vs. Neighbors") with one function call.
-- ⏱️ **Flexible Time & Custom Buckets** — Filter by `weekly`, `monthly`, `all`, as well as custom seasons and teams.
-- 👤 **Player Profiles & Run History** — Track player metadata (country, avatar, level) and complete score progression history.
-- 🛡️ **Network Resilient** — Support for idempotency keys (`submission_id`) and safe error handling that won't crash your game loop.
-- 📦 **Clean Singleton Design** — Simple AutoLoad node, fully asynchronous with GDScript `await`.
+- ⚡ **Instant Rank on Submit** — Score submissions return the player's rank, personal-best status, and total player count in a single request.
+- 🔒 **Zero-Config HMAC Anti-Cheat** — Optional automatic HMAC-SHA256 score signing using native Web Crypto (`crypto.subtle`).
+- 🎯 **Player-Centric Views** — Fetch leaderboards centered around the current player ("You vs. Neighbors").
+- ⏱️ **Time & Custom Buckets** — Built-in support for `weekly`, `monthly`, `all-time`, as well as custom `seasonId` and `teamId` filters.
+- 👤 **Player Profiles & History** — Store player metadata (name, avatar, country, level) and query run/progression history.
+- 🔁 **Idempotent Submissions** — Deduplicate submissions with `submissionId` keys to prevent double-counting on network retries.
+- 📦 **Zero External Dependencies** — Lightweight ESM + CJS bundle with complete TypeScript declarations.
 
 ---
 
 ## Installation
 
-### Option A: From the Godot Asset Library (Recommended)
+```bash
+npm install lightleaderboard
+```
 
-1. Open your project in Godot 4 and navigate to the **AssetLib** tab at the top.
-2. Search for **LightLeaderboard** and click **Download**.
-3. In the installation dialog, click **Install** to add `addons/lightleaderboard/` to your project.
-4. Open **Project → Project Settings → Plugins** and toggle the status checkbox to **Enable** `LightLeaderboard`.
-5. Open **Project → Project Settings → AutoLoad**:
-   - Click the file icon next to **Path** and select `res://addons/lightleaderboard/LightLeaderboard.gd`.
-   - Set **Node Name** to `LightLeaderboard`.
-   - Click **Add**.
+```bash
+# or using yarn
+yarn add lightleaderboard
 
-### Option B: Manual Installation
+# or using pnpm
+pnpm add lightleaderboard
 
-1. Clone or download this repository.
-2. Copy the `addons/lightleaderboard/` directory into your project's `addons/` folder:
-   ```text
-   res://addons/lightleaderboard/
-     ├── LightLeaderboard.gd
-     ├── icon.png
-     └── plugin.cfg
-   ```
-3. Open **Project → Project Settings → Plugins** and enable **LightLeaderboard**.
-4. Open **Project → Project Settings → AutoLoad**:
-   - Path: `res://addons/lightleaderboard/LightLeaderboard.gd`
-   - Node Name: `LightLeaderboard`
-   - Click **Add**.
+# or using bun
+bun add lightleaderboard
+```
 
 ---
 
 ## Quick Start
 
-In any script in your project (e.g. your game manager or main scene):
+```ts
+import { LightLeaderboard } from 'lightleaderboard';
 
-```gdscript
-extends Node
+const lb = new LightLeaderboard({
+  apiKey: 'YOUR_API_KEY', // from the LightLeaderboard dashboard
+  gameId: 'YOUR_GAME_ID', // your game reference ID
+});
 
-func _ready() -> void:
-    # 1. Initialize once with credentials from the LightLeaderboard dashboard
-    LightLeaderboard.configure("YOUR_API_KEY", "YOUR_GAME_REF_ID")
+// 1. Submit a score — returns rank and personal best immediately
+const submission = await lb.submitScore({
+  score: 14250,
+  playerRefId: 'player-101',
+  playerName: 'Alice',
+});
 
-func _on_game_over(final_score: float) -> void:
-    # 2. Submit score and get rank immediately
-    var result = await LightLeaderboard.submit_score({
-        score         = final_score,
-        player_ref_id = "player-123",
-        player_name   = "Alice",
-    })
+console.log(`Rank #${submission.rank} of ${submission.totalPlayers}! Personal best: ${submission.isPersonalBest}`);
+// → "Rank #3 of 1240! Personal best: true"
 
-    if not result.is_empty():
-        print("Rank #%d of %d players! Personal Best: %s" % [
-            result.rank,
-            result.total_players,
-            str(result.is_personal_best)
-        ])
-
-    # 3. Fetch top 10 scores
-    var lb = await LightLeaderboard.get_leaderboard({ limit = 10, period = "weekly" })
-    if not lb.is_empty():
-        for entry in lb.entries:
-            print("#%d  %s: %s" % [entry.rank, entry.player_name, entry.score])
+// 2. Fetch the top 10 players
+const { entries } = await lb.getLeaderboard({ limit: 10, period: 'weekly' });
+entries.forEach((e) => {
+  console.log(`#${e.rank}  ${e.playerName} — ${e.score}`);
+});
 ```
+
+---
+
+## Configuration
+
+### `new LightLeaderboard(config)`
+
+```ts
+const lb = new LightLeaderboard({
+  apiKey: 'your-api-key',
+  gameId: 'your-game-ref-id',
+  scoreSecret: 'your-signature-secret', // optional: enables HMAC signing
+  baseUrl: 'https://leaderboard.goproso.com', // optional: custom backend URL
+});
+```
+
+| Option | Type | Required | Description |
+|---|---|---|---|
+| `apiKey` | `string` | **Yes** | Your game's API key generated in the developer portal. |
+| `gameId` | `string` | **Yes** | Your game reference ID (e.g. `cosmic-runner`). |
+| `scoreSecret` | `string` | No | Optional signature secret for HMAC-SHA256 score verification. |
+| `baseUrl` | `string` | No | Custom API base URL (defaults to `https://leaderboard.goproso.com`). |
 
 ---
 
 ## API Reference
 
-### `configure(api_key, game_id, score_secret?, base_url?)`
+### `submitScore(options)`
 
-Initializes the LightLeaderboard client. Call this once during game startup before calling other API methods.
+Submits a score for a player. Automatically computes their current rank, updates personal bests, and returns leaderboard counts in one roundtrip.
 
-```gdscript
-LightLeaderboard.configure(
-    "api-key-here",
-    "game-id-here",
-    "optional-signature-secret", # Optional: enables HMAC-SHA256 signing
-    "https://leaderboard.goproso.com" # Optional: custom base URL
-)
+```ts
+const result = await lb.submitScore({
+  score: 9500,
+  playerRefId: 'player-123',
+  playerName: 'Alice',
+  playTimeMs: 124500,                    // 2m 4.5s
+  seasonId: 'season-2',                  // optional season bucket
+  teamId: 'team-blue',                   // optional team bucket
+  submissionId: crypto.randomUUID(),      // idempotency key
+  metadata: { level: 8, character: 'rogue' },
+  gameStatTxt1: 'Hard Mode',             // custom text slot 1
+  gameStatInt1: 42,                      // custom integer slot 1 (e.g. coins)
+});
+
+console.log(result.id);             // DB submission record ID
+console.log(result.rank);           // Current rank (e.g. 4)
+console.log(result.isPersonalBest); // true if this is player's highest score
+console.log(result.totalPlayers);   // Total unique players on leaderboard
+console.log(result.deduped);        // true if submissionId was already processed
 ```
 
-| Parameter | Type | Required | Description |
+#### Parameters (`SubmitScoreOptions`)
+
+| Field | Type | Required | Description |
 |---|---|---|---|
-| `api_key` | `String` | **Yes** | Your game API key from the developer portal. |
-| `game_id` | `String` | **Yes** | Your game reference ID. |
-| `score_secret` | `String` | No | Signature secret for automated HMAC-SHA256 score verification. |
-| `base_url` | `String` | No | Custom API base URL (defaults to `https://leaderboard.goproso.com`). |
+| `score` | `number` | **Yes** | The numeric score to submit. |
+| `playerRefId` | `string` | No | Your internal player identifier. Required for rank calculation. |
+| `playerName` | `string` | No | Display name to show on the leaderboard. |
+| `playTimeMs` | `number` | No | Playtime duration in milliseconds. |
+| `seasonId` | `string` | No | Seasonal leaderboard identifier. |
+| `teamId` | `string` | No | Team / clan identifier. |
+| `submissionId` | `string` | No | Unique client ID to prevent duplicate submissions on retry. |
+| `metadata` | `Record<string, unknown>` | No | Custom JSON payload attached to the score entry. |
+| `gameStatTxt1` / `2` / `3` | `string` | No | Additional custom string stat slots. |
+| `gameStatInt1` / `2` / `3` | `number` | No | Additional custom numeric stat slots. |
 
 ---
 
-### `await submit_score(options: Dictionary) -> Dictionary`
+### `getLeaderboard(options?)`
 
-Submits a score to the leaderboard. Returns the player's updated rank, total player count, and personal best status in a single call.
+Fetches leaderboard rankings. By default, returns **one entry per player** (their highest score).
 
-```gdscript
-var submission = await LightLeaderboard.submit_score({
-    score         = 12450.0,
-    player_ref_id = "player-123",
-    player_name   = "Alice",
-    play_time_ms  = 84200,                    # 1m 24.2s
-    season_id     = "season-2",               # optional season bucket
-    team_id       = "team-red",               # optional team bucket
-    submission_id = "unique-run-uuid",        # idempotency key
-    metadata      = { "stage": 4, "hero": "knight" },
-    game_stat_txt1 = "Normal Difficulty",
-    game_stat_int1 = 120,                     # e.g. coins collected
-})
-```
+```ts
+const { entries, scoreOrder, total, limit, offset } = await lb.getLeaderboard({
+  limit: 25,          // 1–100 (default: 20)
+  offset: 0,          // pagination offset
+  period: 'weekly',   // 'all' | 'weekly' | 'monthly'
+  season: 'season-2', // filter by season
+  team: 'team-blue',  // filter by team
+  allEntries: false,  // true = all submissions, false = best score per player
+});
 
-#### Options Dictionary
-
-| Key | Type | Required | Description |
-|---|---|---|---|
-| `score` | `float` or `int` | **Yes** | The numeric score to submit. |
-| `player_ref_id` | `String` | No | Your internal unique player ID (needed for rank calculation). |
-| `player_name` | `String` | No | Player display name shown on leaderboards. |
-| `play_time_ms` | `int` | No | Run duration in milliseconds. |
-| `season_id` | `String` | No | Season bucket identifier. |
-| `team_id` | `String` | No | Team / Clan identifier. |
-| `submission_id` | `String` | No | Unique client ID to prevent duplicate submissions on retry. |
-| `metadata` | `Dictionary` | No | Arbitrary JSON dictionary attached to this score. |
-| `game_stat_txt1/2/3` | `String` | No | Custom text statistic slots. |
-| `game_stat_int1/2/3` | `int` | No | Custom integer statistic slots. |
-
-#### Return Value
-
-```gdscript
-{
-    "id":               int,          # Database record ID
-    "rank":             int or null,  # Current rank after submission (null if no player_ref_id)
-    "is_personal_best": bool,         # true if this beats player's previous best
-    "total_players":    int or null,  # Total unique players on leaderboard
-    "deduped":          bool,         # true if submission_id was already processed
-}
+entries.forEach((entry) => {
+  console.log(`#${entry.rank} [${entry.playerName}] ${entry.score}`);
+});
 ```
 
 ---
 
-### `await get_leaderboard(options?: Dictionary) -> Dictionary`
+### `getPlayerRank(playerRefId, options?)`
 
-Fetches leaderboard rankings. By default, returns one entry per player (their personal best).
+Retrieves a player's rank, best score, and **percentile** standing.
 
-```gdscript
-var lb = await LightLeaderboard.get_leaderboard({
-    limit       = 20,         # 1–100 (default 20)
-    offset      = 0,          # Pagination offset
-    period      = "weekly",   # "all" | "weekly" | "monthly"
-    season      = "season-2", # Filter by season ID
-    team        = "team-red", # Filter by team ID
-    all_entries = false,      # true = all scores, false = best score per player
-})
+```ts
+const rankInfo = await lb.getPlayerRank('player-123', {
+  period: 'weekly',
+  season: 'season-2',
+});
 
-if not lb.is_empty():
-    for entry in lb.entries:
-        print("#%d  %s  (Score: %s)" % [entry.rank, entry.player_name, entry.score])
+console.log(rankInfo.rank);         // e.g. 15
+console.log(rankInfo.score);        // e.g. 9500
+console.log(rankInfo.totalPlayers);  // e.g. 1500
+console.log(rankInfo.percentile);    // e.g. 99.0 (Top 1%)
 ```
 
-#### Return Value
+> **Note on Percentiles:** Percentile is scaled from 0 to 100 where higher is better. A percentile of `99.0` means the player ranks above 99% of all participants.
 
-```gdscript
-{
-    "entries":     Array,       # Array of entry Dictionaries
-    "score_order": String,      # "desc" or "asc"
-    "period":      String,      # "all", "weekly", or "monthly"
-    "season":      String or null,
-    "team":        String or null,
-    "limit":       int,
-    "offset":      int,
-}
-```
+---
 
-Each item in `entries`:
+### `getCentricLeaderboard(playerRefId, options?)`
 
-```gdscript
-{
-    "id":            int,
-    "rank":          int,
-    "player_ref_id": String or null,
-    "player_name":   String or null,
-    "score":         float,
-    "play_time_ms":  int or null,
-    "metadata":      Dictionary,
-    "created_at":    String,
-}
+Returns a localized slice of the leaderboard centered on the player (e.g. 5 ranks above, the player, and 5 ranks below). Ideal for "You vs. Nearest Competitors" screens.
+
+```ts
+const { entries, playerRank } = await lb.getCentricLeaderboard('player-123', {
+  limit: 11, // 5 above + player + 5 below
+  period: 'all',
+});
+
+console.log(`Current player rank: #${playerRank}`);
+entries.forEach((e) => {
+  const isMe = e.playerRefId === 'player-123' ? ' (YOU)' : '';
+  console.log(`#${e.rank} ${e.playerName}: ${e.score}${isMe}`);
+});
 ```
 
 ---
 
-### `await get_player_rank(player_ref_id: String, options?: Dictionary) -> Dictionary`
+### `getPlayer(playerRefId)`
 
-Retrieves a player's rank, personal best score, and **percentile** standing.
+Fetches a player's saved profile data.
 
-```gdscript
-var rank_data = await LightLeaderboard.get_player_rank("player-123", { period = "weekly" })
-
-if not rank_data.is_empty():
-    print("Rank: #%d of %d" % [rank_data.rank, rank_data.total_players])
-    print("Score: %s" % rank_data.score)
-    print("Percentile: %.1f%%" % rank_data.percentile) # 0–100, higher is better
+```ts
+const profile = await lb.getPlayer('player-123');
+console.log(profile.playerName, profile.avatarUrl, profile.country, profile.level);
 ```
 
 ---
 
-### `await get_centric_leaderboard(player_ref_id: String, options?: Dictionary) -> Dictionary`
+### `updatePlayer(playerRefId, options)`
 
-Fetches a slice of the leaderboard centered on the player (e.g. 5 ranks above, the player, and 5 ranks below).
+Creates or updates a player's profile metadata. Existing omitted fields remain unchanged.
 
-```gdscript
-var centric = await LightLeaderboard.get_centric_leaderboard("player-123", {
-    limit  = 11,
-    period = "all",
-})
-
-if not centric.is_empty():
-    print("Leaderboard around your rank #%d:" % centric.player_rank)
-    for entry in centric.entries:
-        var tag = " (YOU)" if entry.player_ref_id == "player-123" else ""
-        print("#%d  %s: %s%s" % [entry.rank, entry.player_name, entry.score, tag])
+```ts
+await lb.updatePlayer('player-123', {
+  playerName: 'Alice Wonder',
+  avatarUrl: 'https://example.com/avatar.png',
+  country: 'US',
+  level: 42,
+  teamId: 'team-blue',
+  device: 'desktop',
+});
 ```
 
 ---
 
-### `await get_player(player_ref_id: String) -> Dictionary`
+### `getPlayerScores(playerRefId, options?)`
 
-Fetches a player's profile data.
+Retrieves all individual score submissions recorded for a player, sorted newest first. Useful for run histories, personal statistics, and progression graphs.
 
-```gdscript
-var profile = await LightLeaderboard.get_player("player-123")
-if not profile.is_empty():
-    print("Player: ", profile.player_name)
-    print("Country: ", profile.country)
-    print("Level: ", profile.level)
-```
+```ts
+const history = await lb.getPlayerScores('player-123', {
+  limit: 20,
+  offset: 0,
+});
 
----
-
-### `await update_player(player_ref_id: String, options: Dictionary) -> void`
-
-Creates or updates a player's profile. Omitted fields preserve their existing values.
-
-```gdscript
-await LightLeaderboard.update_player("player-123", {
-    player_name = "Alice Wonder",
-    avatar_url  = "https://example.com/avatar.png",
-    country     = "US",
-    level       = 42,
-    team_id     = "team-red",
-    device      = "desktop",
-})
-```
-
----
-
-### `await get_player_scores(player_ref_id: String, options?: Dictionary) -> Dictionary`
-
-Fetches all individual runs/submissions made by a player, sorted newest first.
-
-```gdscript
-var history = await LightLeaderboard.get_player_scores("player-123", {
-    limit  = 20,
-    offset = 0,
-})
-
-if not history.is_empty():
-    print("Total runs: %d, Best score: %s" % [history.total, history.best_score])
-    for run in history.entries:
-        print("%s — score: %s" % [run.created_at, run.score])
+console.log(`Total runs: ${history.total}, Best score: ${history.bestScore}`);
+history.entries.forEach((run) => {
+  console.log(`${run.createdAt}: ${run.score} (time: ${run.playTimeMs}ms)`);
+});
 ```
 
 ---
 
 ## Anti-Cheat & Score Signing
 
-To prevent client-side score tampering, enable **Require signed scores** in your game settings on the LightLeaderboard dashboard.
+When **Require signed scores** is enabled in your game settings on the LightLeaderboard dashboard, score requests must include an HMAC-SHA256 signature.
 
-Then provide your signature secret to `configure()`:
+Pass `scoreSecret` into the constructor and the SDK will automatically sign every score payload:
 
-```gdscript
-LightLeaderboard.configure("YOUR_API_KEY", "YOUR_GAME_REF_ID", "YOUR_SIGNATURE_SECRET")
+```ts
+const lb = new LightLeaderboard({
+  apiKey: 'YOUR_API_KEY',
+  gameId: 'YOUR_GAME_ID',
+  scoreSecret: 'YOUR_SIGNATURE_SECRET', // from Dashboard -> Security / Secrets
+});
+
+// Automatically signed with header 'x-score-signature: sha256=...'
+await lb.submitScore({
+  score: 12500,
+  playerRefId: 'player-123',
+});
 ```
 
-Every subsequent `submit_score` call will automatically calculate an HMAC-SHA256 signature over the request body using Godot's built-in `HMACContext` and attach the `x-score-signature` header.
+Signing relies on the standardized **Web Crypto API** (`globalThis.crypto.subtle`), available in all modern browsers, Node.js 18+, Bun, Deno, and Edge Workers.
 
 ---
 
 ## Error Handling
 
-When a network or API error occurs:
-1. The method logs a detailed error to Godot's console via `push_error`.
-2. The method returns an empty `Dictionary` (`{}`) rather than crashing.
+All failed API requests throw an instance of `LightLeaderboardError`:
 
-Always verify results using `is_empty()` before accessing response keys:
+```ts
+import { LightLeaderboard, LightLeaderboardError } from 'lightleaderboard';
 
-```gdscript
-var res = await LightLeaderboard.submit_score({ score = 9500.0 })
-if res.is_empty():
-    print("Score submission failed. Check Godot Output / Debugger for details.")
-    return
+try {
+  await lb.submitScore({ score: 9500 });
+} catch (error) {
+  if (error instanceof LightLeaderboardError) {
+    console.error(`API Error: ${error.message} (HTTP ${error.status})`);
 
-print("Submission successful! Rank: ", res.rank)
+    if (error.isAuthError) {
+      console.error('Invalid API Key or Game ID.');
+    } else if (error.isRateLimitError) {
+      console.warn('Rate limit exceeded. Please back off.');
+    } else if (error.isBillingError) {
+      console.warn('Game account limit or plan quota reached.');
+    } else if (error.isValidationError) {
+      console.error('Payload validation failed:', error.response);
+    }
+  } else {
+    console.error('Unexpected error:', error);
+  }
+}
 ```
 
 ---
 
-## Requirements
+## TypeScript Support
 
-- **Godot Engine 4.0+** (Standard or .NET edition with GDScript)
-- Network/Internet permissions enabled in your target export templates (Android, iOS, Web).
+This SDK is written in TypeScript and exports all request, response, and entity types:
+
+```ts
+import type {
+  LightLeaderboardConfig,
+  SubmitScoreOptions,
+  SubmitScoreResult,
+  GetLeaderboardOptions,
+  GetLeaderboardResult,
+  LeaderboardEntry,
+  GetRankOptions,
+  PlayerRankResult,
+  GetCentricOptions,
+  CentricLeaderboardResult,
+  PlayerProfile,
+  UpdatePlayerOptions,
+  GetPlayerScoresOptions,
+  GetPlayerScoresResult,
+  PlayerScoreEntry,
+} from 'lightleaderboard';
+```
 
 ---
 

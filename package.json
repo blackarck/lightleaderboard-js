@@ -1,0 +1,50 @@
+{
+  "name": "lightleaderboard",
+  "version": "1.0.0",
+  "description": "Official JavaScript/TypeScript SDK for LightLeaderboard — leaderboard-as-a-service for game developers",
+  "keywords": [
+    "leaderboard",
+    "game",
+    "gamedev",
+    "highscore",
+    "ranking",
+    "sdk"
+  ],
+  "homepage": "https://leaderboard.goproso.com",
+  "bugs": {
+    "url": "https://github.com/blackarck/lightleaderboard-js/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/blackarck/lightleaderboard-js.git"
+  },
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.0",
+    "typescript": "^5.7.0"
+  }
+}
